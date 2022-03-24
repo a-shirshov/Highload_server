@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY . .
 
+RUN mkdir -p var/www/html && cp -r httptest var/www/html
 
 WORKDIR /app/build
 RUN cmake .. && make
