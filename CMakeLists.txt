@@ -13,8 +13,12 @@ target_include_directories(server PUBLIC lib/server)
 add_library(response STATIC lib/server/response.cpp)
 target_include_directories(response PUBLIC lib/server)
 
+add_library(config STATIC lib/config/config.cpp)
+target_include_directories(config PUBLIC lib/config)
+
 add_executable(main main.cpp)
 
 target_link_libraries(main Threads::Threads)
 target_link_libraries(main server)
 target_link_libraries(main response)
+target_link_libraries(main config)

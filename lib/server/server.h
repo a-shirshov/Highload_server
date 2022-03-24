@@ -1,10 +1,8 @@
+#ifndef SERVER_H
+#define SERVER_H
 #include <iostream>
+#include "../config/config.h"
 
-struct Config {
-    int threads_limit;
-    std::string document_root;
-    uint16_t port;
-};
 
 class Server {
 public:
@@ -20,3 +18,5 @@ private:
     static void Serve(int *sockfd);
     static void *Handle(void *arg);
 };
+
+#endif

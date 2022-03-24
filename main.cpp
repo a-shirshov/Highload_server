@@ -1,24 +1,8 @@
 #include <iostream>
 #include "lib/server/server.h"
-#include <fstream>
-#include <sstream>
+#include "lib/config/config.h"
 
 const std::string configPath = "../httpd.conf";
-
-
-Config parseConfig(std::string configPath) {
-    Config conf;
-
-    std::ifstream confFile(configPath);
-    std::string threads_limit, document_root;
-
-    confFile >> threads_limit >> conf.threads_limit >> document_root >> conf.document_root;
-
-    confFile.close();
-
-    return conf;
-}
-
 
 int main() {
     Config conf;
