@@ -42,7 +42,7 @@ void Server::Start() {
     }
 */
 
-    printf("%d\n",sockfd);
+    //printf("%d\n",sockfd);
 
     if (bind(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
         perror("bind");
@@ -112,7 +112,7 @@ std::string getPath(std::string request) {
     int posEOL = request.find("\r\n");
     firstLine = request.substr(0,posEOL);
 
-    printf("%s%s\n","Firstline: ",(char *)firstLine.c_str());
+    //printf("%s%s\n","Firstline: ",(char *)firstLine.c_str());
 
     std::string path = "../var/www/html";
     int pathStart = firstLine.find(" ") + 1;
@@ -125,19 +125,19 @@ std::string getPath(std::string request) {
         path += firstLine[i];
     }
 
-    printf("%s%s\n","Path: ",(char *)path.c_str());
+    //printf("%s%s\n","Path: ",(char *)path.c_str());
 
     path = urlDecode(path);
 
     printf("%s%s\n","Path Decode: ",(char *)path.c_str());
-
+    // Check for ../
     if (path.find("../",3) != path.npos) {
         path.clear();
         return path;
     }
 
     if (path[path.size()-1] == '/') {
-        printf("%s%s\n","Directory check in fun: ",(char *)path.c_str());
+        //printf("%s%s\n","Directory check in fun: ",(char *)path.c_str());
         if(std::filesystem::exists(path.c_str())) {
             auto it = std::filesystem::directory_iterator(path);
             std::vector<std::filesystem::path> files;
@@ -147,26 +147,22 @@ std::string getPath(std::string request) {
                 return std::filesystem::is_regular_file(entry);
             });
 
-            printf("%s%ld\n","Files Length: ",files.size());
-            std::string indexFile;
-            indexFile.clear();
+            //printf("%s%ld\n","Files Length: ",files.size());
             if (files.size() == 0) {
-                return indexFile;
+                path.clear();
+                return path;
             }
 
             for (auto& fileIt : files) {
-                printf("%s%s\n","Filename: ",(char *)fileIt.filename().string().c_str());
+                //printf("%s%s\n","Filename: ",(char *)fileIt.filename().string().c_str());
                 std::string filename = fileIt.filename().string();
-                int lastNameSymbolIndex =  filename.find_last_of(".");
-                std::string rawname = filename.substr(0,lastNameSymbolIndex);
-                if (strcmp(rawname.c_str(),"index") == 0) {
-                    printf("%s%s\n","Index: ",(char *)rawname.c_str());
-                    indexFile = fileIt.string();
-                    return indexFile;
+                if (filename == "index.html") {
+                    path += filename;
+                    return path;
                 }
             }
-
-            return indexFile;
+            //If directory with no index.html
+            path.clear();
         } 
     }
 
@@ -174,15 +170,11 @@ std::string getPath(std::string request) {
 }
 
 std::string getType(std::string &path) {
-    std::string type;
-    for (int i = path.size() - 1; i >= 0; i--) {
-        if (path[i] == '.') {
-            break;
-        }
-        type += path[i];
+    std::string type = "";
+    int lastdot = path.find_last_of('.');
+    if (lastdot != std::string::npos) {
+        type = path.substr(lastdot + 1,path.length() - 1);
     }
-
-    std::reverse(type.begin(),type.end());
 
     std::map <std::string, int> mapping;
     mapping["txt"] = 0;
@@ -243,7 +235,7 @@ std::string readFile(std::string path, std::string &respFile) {
 }
 
 Response getResponse(std::string request) {
-    printf("%s\n","In Response");
+    //printf("%s\n","In Response");
     Response response;
     std::string path;
     if (path[path.size()-1] == '/') {
@@ -262,11 +254,11 @@ Response getResponse(std::string request) {
         return response;
     }
 
-    printf("%s\n","Path check");
+    //printf("%s\n","Path check");
 
     response.file = readFile(path,response.file);
 
-    printf("%s\n","Read check");
+    //printf("%s\n","Read check");
     if (response.file.empty()) {
         response.status = "404 Not Found";
         response.bodyLength = 0;
@@ -296,7 +288,7 @@ void *Server::Handle(void *arg) {
         close(isock);
         pthread_exit(0);
     }
-    printf("%s\n",(char *)buffer.c_str());
+    //printf("%s\n",(char *)buffer.c_str());
     Response response;
     std::string method;
 
@@ -312,7 +304,7 @@ void *Server::Handle(void *arg) {
 
     response.setHeaders();
     std::string responseString = response.getStringResponse();
-    printf("%s\n",(char *)responseString.c_str());
+    //printf("%s\n",(char *)responseString.c_str());
     send(isock, responseString.c_str(),responseString.size(), 0);
     close(isock);
     free(arg);

@@ -23,35 +23,17 @@ class HttpServer(unittest.TestCase):
   def tearDown(self):
     self.conn.close()
 
-  def test_head_method(self):
-    """head method support"""
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((self.host, self.port))
-    s.send(b"HEAD /httptest/dir2/page.html HTTP/1.0\r\n\r\n")
-    data = b""
-    while 1:
-      buf = s.recv(1024)
-      if not buf:
-        break
-      data += buf
-    s.close()
-
-    self.assertTrue(data.find(b"\r\n\r\n") > 0, "no empty line with CRLF found")
-    (head, body) = re.split(b"\r\n\r\n", data, 1)
-    headers = head.split(b"\r\n")
-    self.assertTrue(len(headers) > 0, "no headers found")
-    status_line = headers.pop(0)
-    proto, code, status = status_line.split(b" ")
-    h = {}
-    for k, v in enumerate(headers):
-      name, value = re.split(b'\\s*:\\s*', v, 1)
-      h[name.lower()] = value
-    if int(code) == 200:
-      self.assertEqual(int(h[b"content-length"]), 38)
-      self.assertEqual(len(body), 0)
-    else:
-      self.assertIn(int(code), (400, 405))
+  def test_file_type_css(self):
+    """Content-Type for .css"""
+    self.conn.request("GET", "/httptest/splash.css")
+    r = self.conn.getresponse()
+    data = r.read()
+    length = r.getheader("Content-Length")
+    ctype = r.getheader("Content-Type")
+    self.assertEqual(int(r.status), 200)
+    self.assertEqual(int(length), 98620)
+    self.assertEqual(len(data), 98620)
+    self.assertEqual(ctype, "text/css")
 
 loader = unittest.TestLoader()
 suite = unittest.TestSuite()
