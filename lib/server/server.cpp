@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <fstream>
 #include <cstring>
+#include <signal.h>
 
 
 Server::Server(Config conf) {
@@ -17,19 +18,20 @@ Server::Server(Config conf) {
 }
 
 Server::~Server() {
-    
+    close(server_socket);
 }
 
 void Server::Start() {
-    int sockfd;
+    signal(SIGPIPE,SIG_IGN);
     int opt = 1;
     struct sockaddr_in serverAddr;
 
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(_port);
     serverAddr.sin_addr.s_addr = INADDR_ANY;
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
 
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if (this->server_socket < 0) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
@@ -44,17 +46,17 @@ void Server::Start() {
 
     //printf("%d\n",sockfd);
 
-    if (bind(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+    if (bind(server_socket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
         perror("bind");
         exit(EXIT_FAILURE);
     }
 
-    if (listen(sockfd, 256) < 0) {
+    if (listen(server_socket, 256) < 0) {
         perror("listen");
         exit(EXIT_FAILURE);
     }
 
-    Serve(&sockfd);
+    Serve(&server_socket);
 }
 
 void Server::Serve(int *sockfd) {
@@ -68,7 +70,6 @@ void Server::Serve(int *sockfd) {
         }
         pthread_t request;
         pthread_create(&request, nullptr, Handle, (void *) isock);
-        //sleep(5);
     }
 }
 
@@ -121,6 +122,8 @@ std::string getPath(std::string request) {
         pathEnd = firstLine.find("?",pathStart);
     }
 
+    //path = firstLine.substr(pathStart,pathEnd);
+
     for (int i = pathStart; i < pathEnd; i++) {
         path += firstLine[i];
     }
@@ -128,8 +131,6 @@ std::string getPath(std::string request) {
     //printf("%s%s\n","Path: ",(char *)path.c_str());
 
     path = urlDecode(path);
-
-    printf("%s%s\n","Path Decode: ",(char *)path.c_str());
     // Check for ../
     if (path.find("../",3) != path.npos) {
         path.clear();
@@ -302,8 +303,8 @@ void *Server::Handle(void *arg) {
         response.file.clear();
     }
 
-    response.setHeaders();
-    std::string responseString = response.getStringResponse();
+    //response.setHeaders();
+    std::string responseString = response.buildResponse();
     //printf("%s\n",(char *)responseString.c_str());
     send(isock, responseString.c_str(),responseString.size(), 0);
     close(isock);

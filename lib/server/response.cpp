@@ -38,3 +38,32 @@ void Response::setHeaders() {
          this->Headers.insert({"Content-Type",this->type});
     }
 }
+
+std::string Response::buildResponse() {
+    std::string response;
+    response += "HTTP/1.1 " + this->status + "\r\n";
+    response += "Connection: close\r\n";
+    response += "Server: MyServer/1.0.0 (Unix)\r\n";
+    std::time_t now = time(0);
+    tm *gmtm = gmtime(&now);
+    char *date = asctime(gmtm);
+    std::string strdate = std::string(date);
+    //Delete /n
+    strdate.pop_back();
+    response += "Date: " +strdate + "\r\n";
+    if (this->bodyLength != 0) {
+        response += "Content-Length: " + std::to_string(bodyLength) + "\r\n";
+    }
+
+    if (this->type != "") {
+        response += "Content-Type: " + this->type + "\r\n";
+    }
+
+    response += "\r\n";
+
+    if (!this->file.empty()) {
+        response += this->file;
+    }
+
+    return response;
+}

@@ -14,6 +14,7 @@ private:
     uint16_t _port;
     int _threads_limit;
     std::string _document_root;
+    int server_socket;
 
     static void Serve(int *sockfd);
     static void *Handle(void *arg);

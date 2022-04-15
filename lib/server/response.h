@@ -11,5 +11,6 @@ struct Response {
 
     std::string getStringResponse();
     void setHeaders();
+    std::string buildResponse();
 };
 
