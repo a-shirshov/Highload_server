@@ -23,17 +23,12 @@ class HttpServer(unittest.TestCase):
   def tearDown(self):
     self.conn.close()
 
-  def test_file_type_css(self):
-    """Content-Type for .css"""
-    self.conn.request("GET", "/httptest/splash.css")
+  def test_file_with_slash_after_filename(self):
+    """slash after filename"""
+    self.conn.request("GET", "/httptest/dir2/page.html/")
     r = self.conn.getresponse()
-    data = r.read()
-    length = r.getheader("Content-Length")
-    ctype = r.getheader("Content-Type")
-    self.assertEqual(int(r.status), 200)
-    self.assertEqual(int(length), 98620)
-    self.assertEqual(len(data), 98620)
-    self.assertEqual(ctype, "text/css")
+    _ = r.read()
+    self.assertEqual(int(r.status), 404)
 
 loader = unittest.TestLoader()
 suite = unittest.TestSuite()

@@ -6,7 +6,7 @@
 
 class Server {
 public:
-    Server(Config conf);
+    explicit Server(Config conf);
     ~Server();
     void Start();
 
@@ -17,7 +17,9 @@ private:
     int server_socket;
 
     static void Serve(int *sockfd);
+    //Deprecated
     static void *Handle(void *arg);
+    static void HandleV2(int* isock);
 };
 
 #endif

@@ -3,7 +3,7 @@
 #include <map>
 
 struct Response {
-    std::string status;
+    int code;
     std::map<std::string, std::string> Headers;
     std::string file;
     int bodyLength = 0;

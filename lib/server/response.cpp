@@ -1,5 +1,7 @@
 #include <response.h>
 #include <ctime>
+#include <string>
+/*
 std::string Response::getStringResponse() {
     std::string response;
     response += "HTTP/1.1 " + this->status + "\r\n";
@@ -38,10 +40,28 @@ void Response::setHeaders() {
          this->Headers.insert({"Content-Type",this->type});
     }
 }
+*/
+
+std::string statusByCode(int code) {
+    switch (code){
+        case 200:
+            return "OK";
+            break;
+        case 403:
+            return "Forbidden";
+            break;
+        case 405:
+            return "Method Not Allowed";
+            break;
+        case 404:
+            return "Not found";
+    }
+    return "I don't know";
+}
 
 std::string Response::buildResponse() {
     std::string response;
-    response += "HTTP/1.1 " + this->status + "\r\n";
+    response += "HTTP/1.1 " + std::to_string(this->code) + " " + statusByCode(code) + "\r\n";
     response += "Connection: close\r\n";
     response += "Server: MyServer/1.0.0 (Unix)\r\n";
     std::time_t now = time(0);
@@ -67,3 +87,4 @@ std::string Response::buildResponse() {
 
     return response;
 }
+

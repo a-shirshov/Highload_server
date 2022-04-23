@@ -2,13 +2,15 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include "response.h"
-#include <ctime>
+#include "request.h"
 #include <filesystem>
 #include <vector>
 #include <algorithm>
 #include <fstream>
 #include <cstring>
 #include <signal.h>
+#include <chrono>
+#include <thread>
 
 
 Server::Server(Config conf) {
@@ -23,7 +25,6 @@ Server::~Server() {
 
 void Server::Start() {
     signal(SIGPIPE,SIG_IGN);
-    int opt = 1;
     struct sockaddr_in serverAddr;
 
     serverAddr.sin_family = AF_INET;
@@ -35,16 +36,6 @@ void Server::Start() {
         perror("socket");
         exit(EXIT_FAILURE);
     }
-/*
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
-                                                  &opt, sizeof(opt)))
-    {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-*/
-
-    //printf("%d\n",sockfd);
 
     if (bind(server_socket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
         perror("bind");
@@ -66,108 +57,11 @@ void Server::Serve(int *sockfd) {
         int *isock = (int *)malloc(sizeof(int));
         if ((*isock = accept(*sockfd, (struct sockaddr *)&clientAddr, (socklen_t *)&clen)) < 0) {
             perror("accept");
-            continue;
+            Serve(sockfd);
         }
-        pthread_t request;
-        pthread_create(&request, nullptr, Handle, (void *) isock);
+        std::thread threadPerRequest(HandleV2, isock);
+        threadPerRequest.join();
     }
-}
-
-
-
-bool isMethodCorrect(std::string request, std::string &method) {
-    std::string firstLine;
-    int posEOL = request.find("\r\n");
-    firstLine = request.substr(0,posEOL);
-
-    int posSpace = firstLine.find(" ");
-    method = firstLine.substr(0,posSpace);
-
-    if (method == "GET" || method == "HEAD") {
-        return true;
-    }
-
-    return false;
-}
-
-//https://stackoverflow.com/questions/154536/encode-decode-urls-in-c
-std::string urlDecode(std::string &SRC) {
-    std::string ret;
-    char ch;
-    int i, ii;
-    for (i=0; i<SRC.length(); i++) {
-        if (int(SRC[i])==37) {
-            sscanf(SRC.substr(i+1,2).c_str(), "%x", &ii);
-            ch=static_cast<char>(ii);
-            ret+=ch;
-            i=i+2;
-        } else {
-            ret+=SRC[i];
-        }
-    }
-    return (ret);
-}
-
-std::string getPath(std::string request) {
-    std::string firstLine;
-    int posEOL = request.find("\r\n");
-    firstLine = request.substr(0,posEOL);
-
-    //printf("%s%s\n","Firstline: ",(char *)firstLine.c_str());
-
-    std::string path = "../var/www/html";
-    int pathStart = firstLine.find(" ") + 1;
-    int pathEnd = firstLine.find(" ",pathStart);
-    if (pathEnd > firstLine.find("?",pathStart)) {
-        pathEnd = firstLine.find("?",pathStart);
-    }
-
-    //path = firstLine.substr(pathStart,pathEnd);
-
-    for (int i = pathStart; i < pathEnd; i++) {
-        path += firstLine[i];
-    }
-
-    //printf("%s%s\n","Path: ",(char *)path.c_str());
-
-    path = urlDecode(path);
-    // Check for ../
-    if (path.find("../",3) != path.npos) {
-        path.clear();
-        return path;
-    }
-
-    if (path[path.size()-1] == '/') {
-        //printf("%s%s\n","Directory check in fun: ",(char *)path.c_str());
-        if(std::filesystem::exists(path.c_str())) {
-            auto it = std::filesystem::directory_iterator(path);
-            std::vector<std::filesystem::path> files;
-
-            std::copy_if(std::filesystem::begin(it), std::filesystem::end(it), std::back_inserter(files), 
-            [](const auto& entry) {
-                return std::filesystem::is_regular_file(entry);
-            });
-
-            //printf("%s%ld\n","Files Length: ",files.size());
-            if (files.size() == 0) {
-                path.clear();
-                return path;
-            }
-
-            for (auto& fileIt : files) {
-                //printf("%s%s\n","Filename: ",(char *)fileIt.filename().string().c_str());
-                std::string filename = fileIt.filename().string();
-                if (filename == "index.html") {
-                    path += filename;
-                    return path;
-                }
-            }
-            //If directory with no index.html
-            path.clear();
-        } 
-    }
-
-    return path;
 }
 
 std::string getType(std::string &path) {
@@ -225,90 +119,104 @@ std::string getType(std::string &path) {
     return type;
 }
 
-std::string readFile(std::string path, std::string &respFile) {
-    std::fstream file(path,std::ios::binary | std::ios::in);
+int readFile(std::string path, std::string &respFile) {
+    std::streampos size;
+    char * memblock;
+    std::ifstream file(path,std::ios::binary | std::ios::in);
     if (file.is_open()) {
-        std::string fileData = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-        respFile = fileData;
+        //Very long operation
+        //std::string fileData = std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        //respFile = fileData;
+        
+        //Fast but not working
+        /*
+        size = file.tellg();
+        memblock = new char [size];
+        file.seekg (0, std::ios::beg);
+        file.read (memblock, size);
+        respFile = std::string(memblock);
+        delete[]memblock;
+        */
+
+        //It works!!!
+        std::stringstream fileData;
+        fileData << file.rdbuf();
+        respFile = fileData.str();
+
         file.close();
+        return 0;
     }
-    return respFile;
+    return 1;
 }
 
-Response getResponse(std::string request) {
-    //printf("%s\n","In Response");
-    Response response;
-    std::string path;
-    if (path[path.size()-1] == '/') {
-        if(std::filesystem::exists(path.c_str())) {
-            response.status = "404 Not Found";
-            response.file.clear();
-            response.bodyLength = 0;
-            return response;
+int getFileByPath(std::string path, std::string& fileData) {
+    if (path.back() == '/') {
+        if (path.find(".html/") != std::string::npos) {
+            return 404;
+        }
+        path += "index.html";
+        int code = readFile(path, fileData);
+        if (code != 0) {
+            fileData.clear();
+            return 403;
         }
     }
-
-    path = getPath(request);
-    if (path.empty()) {
-        response.status = "403 Forbidden";
-        response.bodyLength = 0;
-        return response;
+    //auto t1 = std::chrono::high_resolution_clock::now();
+    int code = readFile(path,fileData);
+    //auto t2 = std::chrono::high_resolution_clock::now();
+    //auto ms_int = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+    //printf("%s%ld%s\n","Time is ",ms_int.count(),"ms");
+    if (code != 0) {
+            fileData.clear();
+            return 404;
     }
-
-    //printf("%s\n","Path check");
-
-    response.file = readFile(path,response.file);
-
-    //printf("%s\n","Read check");
-    if (response.file.empty()) {
-        response.status = "404 Not Found";
-        response.bodyLength = 0;
-    } else {
-        response.status = "200 OK";
-        response.bodyLength = response.file.size();
-    }
-
-    response.type = getType(path);
-    if (response.type.empty()) {
-        response.status = "403 Forbidden";
-        response.file.clear();
-        response.bodyLength = 0;
-    }
-
-    return response;
+    return 200;
 }
 
-void *Server::Handle(void *arg) {
-    int isock = *(int *) arg;
+void Server::HandleV2(int* socket) {
+    int isock = *socket;
     std::string buffer;
     buffer.resize(10000);
     int readBytes = recv(isock, (char *) buffer.c_str(), 10000, 0);
     if (readBytes == -1) {
         perror("recv");
-        free(arg);
         close(isock);
-        pthread_exit(0);
     }
-    //printf("%s\n",(char *)buffer.c_str());
+
+    Request request;
     Response response;
-    std::string method;
+    
+    parseFirstLineRequest(request, buffer);
+    buffer.clear();
 
-    if (isMethodCorrect(buffer,method)) {
-        response = getResponse(buffer);
+    
+    request.path = ".." + request.path;
+    request.path = urlDecode(request.path);
+
+    size_t pos = request.path.find('?',0);
+    if (pos != std::string::npos) {
+        request.path = request.path.substr(0,pos);
+    }
+    if (request.method == "HEAD" || request.method == "GET") {
+        if(request.path.find("../",3) != std::string::npos) {
+            response.code = 403;
+        } else {
+            
+            response.code = getFileByPath(request.path, response.file);
+            if (response.code == 200) {
+                response.bodyLength = response.file.length();
+            }
+            response.type = getType(request.path);
+            if (request.method == "HEAD") {
+                response.file.clear();
+            }
+        }
     } else {
-        response.status = "405 Method Not Allowed";
+        response.code = 405;
     }
-
-    if(strcmp(method.c_str(),"HEAD") == 0) {
-        response.file.clear();
-    }
-
-    //response.setHeaders();
+    
     std::string responseString = response.buildResponse();
-    //printf("%s\n",(char *)responseString.c_str());
+    
     send(isock, responseString.c_str(),responseString.size(), 0);
     close(isock);
-    free(arg);
-    pthread_exit(0);
 }
-
